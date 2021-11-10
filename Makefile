@@ -29,3 +29,7 @@ reload:
 .PHONY: stop ## Stop the vm
 stop:
 	vagrant halt
+
+.PHONY: main ## SSH connect to main
+main:
+	vagrant ssh main

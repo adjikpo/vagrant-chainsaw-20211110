@@ -72,8 +72,48 @@ echo "${color} INSTALLATION PKG : OK "
 
 #install java 11
 echo "${color} INSTALLATION JAVA : START"
-apt install openjdk-11-jdk
+apt install -y openjdk-11-jdk
 
 #Confirmation
 java --version
 echo "${color} INSTALLATION JAVA : OK "
+
+# J'ajoute les deux clefs sur la vm
+	mkdir -p /root/.ssh
+	cp /vagrant/githosting_rsa /home/vagrant/.ssh/githosting_rsa
+	cp /vagrant/githosting_rsa.pub /home/vagrant/.ssh/githosting_rsa.pub
+
+	# Configuration de SSH en fonction des hosts
+	cat > /home/vagrant/.ssh/config <<-MARK
+	Host *
+	  StrictHostKeyChecking no
+	Host $GIT_HOST
+	  User git
+	  IdentityFile ~/.ssh/githosting_rsa
+	MARK
+
+	# Correction des permissions
+	chmod 0600 /home/vagrant/.ssh/*
+	chown -R vagrant:vagrant /home/vagrant/.ssh
+
+	# Utilisation du SSH-AGENT pour charger les clés une fois pour toute
+	# et ne pas avoir à retaper les password des clefs
+	sed -i \
+		-e '/## BEGIN PROVISION/,/## END PROVISION/d' \
+		/home/vagrant/.bashrc
+	cat >> /home/vagrant/.bashrc <<-MARK
+	## BEGIN PROVISION
+	eval \$(ssh-agent -s)
+	ssh-add ~/.ssh/githosting_rsa
+	## END PROVISION
+	MARK
+
+	GIT_DIR="$(basename "$GIT_REPOSITORY" |sed -e 's/.git$//')"
+
+	# Deploy git repository
+	su - vagrant -c "ssh-keyscan $GIT_HOST >> .ssh/known_hosts"
+	su - vagrant -c "sort -u < .ssh/known_hosts > .ssh/known_hosts.tmp && mv .ssh/known_hosts.tmp .ssh/known_hosts"
+	rm -rf "/home/vagrant/$(basename "$GIT_DIR")"
+  su - vagrant -c "git clone '$GIT_REPOSITORY' '$GIT_DIR'"
+	su - vagrant -c "git config --global user.name '$USER_NAME'"
+	su - vagrant -c "git config --global user.email '$USER_EMAIL'"
